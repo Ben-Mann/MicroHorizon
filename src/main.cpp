@@ -44,12 +44,18 @@
 #define YELLOW          0xFFE0
 #define WHITE           0xFFFF
 
+#define RUN_TEST_PATTERNS 0
+
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1351.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
 #include <SPI.h>
 
 // Option 1: use any pins but a little slower
 Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN, DC_PIN, MOSI_PIN, SCLK_PIN, RST_PIN);
+Adafruit_MPU6050 mpu;
+char hasMpu = 0;
 
 // Option 2: must use the hardware SPI pins
 // (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
@@ -276,52 +282,102 @@ void setup(void) {
     lcdTestPattern();
     delay(500);
 
-    tft.invert(true);
-    delay(100);
-    tft.invert(false);
-    delay(100);
+    if (RUN_TEST_PATTERNS != 0) {
+        tft.invert(true);
+        delay(100);
+        tft.invert(false);
+        delay(100);
 
-    tft.fillScreen(BLACK);
-    testdrawtext("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur adipiscing ante sed nibh tincidunt feugiat. Maecenas enim massa, fringilla sed malesuada et, malesuada sit amet turpis. Sed porttitor neque ut ante pretium vitae malesuada nunc bibendum. Nullam aliquet ultrices massa eu hendrerit. Ut sed nisi lorem. In vestibulum purus a tortor imperdiet posuere. ", WHITE);
-    delay(500);
+        tft.fillScreen(BLACK);
+        testdrawtext(
+                "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur adipiscing ante sed nibh tincidunt feugiat. Maecenas enim massa, fringilla sed malesuada et, malesuada sit amet turpis. Sed porttitor neque ut ante pretium vitae malesuada nunc bibendum. Nullam aliquet ultrices massa eu hendrerit. Ut sed nisi lorem. In vestibulum purus a tortor imperdiet posuere. ",
+                WHITE);
+        delay(500);
 
-    // tft print function!
-    tftPrintTest();
-    delay(500);
+        // tft print function!
+        tftPrintTest();
+        delay(500);
 
-    //a single pixel
-    tft.drawPixel(tft.width()/2, tft.height()/2, GREEN);
-    delay(500);
+        //a single pixel
+        tft.drawPixel(tft.width() / 2, tft.height() / 2, GREEN);
+        delay(500);
 
-    // line draw test
-    testlines(YELLOW);
-    delay(500);
+        // line draw test
+        testlines(YELLOW);
+        delay(500);
 
-    // optimized lines
-    testfastlines(RED, BLUE);
-    delay(500);
+        // optimized lines
+        testfastlines(RED, BLUE);
+        delay(500);
 
 
-    testdrawrects(GREEN);
-    delay(1000);
+        testdrawrects(GREEN);
+        delay(1000);
 
-    testfillrects(YELLOW, MAGENTA);
-    delay(1000);
+        testfillrects(YELLOW, MAGENTA);
+        delay(1000);
 
-    tft.fillScreen(BLACK);
-    testfillcircles(10, BLUE);
-    testdrawcircles(10, WHITE);
-    delay(1000);
+        tft.fillScreen(BLACK);
+        testfillcircles(10, BLUE);
+        testdrawcircles(10, WHITE);
+        delay(1000);
 
-    testroundrects();
-    delay(500);
+        testroundrects();
+        delay(500);
 
-    testtriangles();
-    delay(500);
+        testtriangles();
+        delay(500);
+    }
 
     Serial.println("done");
     delay(1000);
+
+    tft.fillScreen(BLACK);
+    if (mpu.begin()) {
+        hasMpu = 1;
+        mpu.setAccelerometerRange(MPU6050_RANGE_16_G);
+        mpu.setGyroRange(MPU6050_RANGE_250_DEG);
+        mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+    } else {
+        testdrawtext("Cannot initialise MPU", RED);
+    }
+}
+
+float v[7] = { 0, 0, 0, 0, 0, 0, 0 };
+char first = 1;
+
+void printValue(float value, int index) {
+    int y = index * 12;
+    if (!first) {
+        tft.setTextColor(BLACK);
+        tft.setCursor(0, y);
+        tft.print(v[index]);
+    }
+    tft.setTextColor(index < 3 ? WHITE : index < 6 ? YELLOW : CYAN);
+    tft.setCursor(0, y);
+    tft.print(value);
+    v[index] = value;
+}
+
+void testMpu6050() {
+    sensors_event_t a, g, temp;
+    mpu.getEvent(&a, &g, &temp);
+
+    printValue(a.acceleration.x, 0);
+    printValue(a.acceleration.y, 1);
+    printValue(a.acceleration.z, 2);
+
+    printValue(g.gyro.x, 3);
+    printValue(g.gyro.y, 4);
+    printValue(g.gyro.z, 5);
+
+    printValue(temp.temperature, 6);
+    first = 0;
 }
 
 void loop() {
+    if (hasMpu == 1) {
+        testMpu6050();
+        delay(100);
+    }
 }
