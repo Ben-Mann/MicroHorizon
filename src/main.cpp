@@ -158,24 +158,24 @@ void testMpu6050() {
 // we therefore need to do this in our hardcoded write function.
 // Either that, or we use 10% of the chip's memory as a row or column
 // buffer, and write only to that.
-char characters[6*7] = {};
-const char char0 = 0;
-const char char1 = 1;
-const char char2 = 2;
-const char char3 = 3;
-const char char4 = 4;
-const char char5 = 5;
-const char char6 = 6;
-const char char7 = 7;
-const char char8 = 8;
-const char char9 = 9;
+
 const char charNeg = 10;
 const char charDot = 11;
 const char charSpace = 15;
 
+char characters[6*7] = {
+        charSpace, charSpace,charSpace,charSpace,charSpace,charSpace,
+        charSpace, charSpace,charSpace,charSpace,charSpace,charSpace,
+        charSpace, charSpace,charSpace,charSpace,charSpace,charSpace,
+        charSpace, charSpace,charSpace,charSpace,charSpace,charSpace,
+        charSpace, charSpace,charSpace,charSpace,charSpace,charSpace,
+        charSpace, charSpace,charSpace,charSpace,charSpace,charSpace,
+        charSpace, charSpace,charSpace,charSpace,charSpace,charSpace,
+};
+
 void printToBuffer(char row, char colourIndex, float value) {
     char colourBits = colourIndex << 4;
-    char offset = row * 7;
+    char offset = row * 6;
     int16_t ivalue = value * 100; // work with ints
     characters[offset + 0] = colourBits | (ivalue < 0 ? charNeg : charSpace);
     if (ivalue < 0) {
@@ -200,91 +200,62 @@ const uint16_t blue = 0x733F; // 01110 011001 11111
 // 179, 121, 41
 const uint16_t brown = 0x63C5; // 01100 011110 00101
 
-char overlayBuffer[16] = {};
-char brownBuffer[16] = {};
-
-// This is horribly slow
-void drawHorizonVLineRunLength(int16_t x, int16_t yintercept) {
-    // create Horizon layer
-    uint8_t y = 0;
-    if (yintercept < 0) {
-        for (int i = 0; i < 16; i++) {
-            brownBuffer[i] = 0xFF;
-        }
-    } else if (yintercept > 127) {
-        for (int i = 0; i < 16; i++) {
-            brownBuffer[i] = 0x00;
-        }
-    } else {
-        // Which block should we bash bits in?
-        // yintercept   block   bit_start   bits
-        // 0            0       1           FF
-        // 1            0       2           FE
-        // 2            0       4           FC
-        // 7            0       128         1
-        // 8            1       0           FF
-        // 9            1       1           FE
-        const uint8_t yintercept_block = yintercept >> 3;
-        y = 0;
-        while (y < yintercept_block) {
-            brownBuffer[y++] = 0;
-        }
-        // FF >> 0 == FF, FF >> 7 ==
-        const uint8_t shift = yintercept & 0x07;
-        brownBuffer[y++] = 0xFF << shift;
-        while (y < 16) {
-            brownBuffer[y++] = 0xFF;
-        }
-    }
-
-    // Create character layer
-    if (x < 32) {
-        y = 0;
-        while (y < 4) {
-            overlayBuffer[y++] = 0x11;
-        }
-        while (y < 16) {
-            overlayBuffer[y++] = 0x00;
-        }
-    }
-
-    // Combine layers into a set of pixel operations
-    uint16_t runColour = blue;
-    int16_t runStart = 0;
-    uint8_t runLength = 0;
-    for(y = 0; y < 128; y++) {
-        const uint8_t block = y >> 3;
-        const uint8_t bit = 1 << (y & 0x07);
-        uint16_t c = blue;
-        if (brownBuffer[block] & bit) {
-            c = brown;
-        }
-        if (overlayBuffer[block] & bit) {
-            c = WHITE;
-        }
-        if (c == runColour) {
-            runLength++;
-        } else {
-            // Output the last run
-            if (runLength > 0) {
-                tft.writeFillRectPreclipped(x, runStart, 1, runLength, runColour);
-                //tft.drawFastVLine(x, runStart, runLength, runColour);
-            }
-            // Start a new one.
-            runColour = c;
-            runStart = y;
-            runLength = 1;
-        }
-    }
-    // Output the last run.
-    tft.writeFillRectPreclipped(x, runStart, 1, runLength, runColour);
-    //tft.drawFastVLine(x, runStart, runLength, runColour);
-}
-
 uint16_t colourBuffer[16] = {};
+
+//  xx   x    xx  xxx  x x  xxxx  xxx xxxx  xx   xx
+// x  x xx   x  x    x x x  x    x       x x  x x  x
+// x  x  x     x    x  xxxx xxx  xxx    x   xx   xxx xxxx
+// x  x  x    x      x   x     x x  x  x   x  x    x
+//  xx  xxx  xxxx xxx    x  xxx   xx  x     xx    x        xx
+// 01100111001111011100001
+// E11E02F00029520115A074F
+uint8_t vfont[] = {
+        0x0E, 0x11, 0x11, 0x0E, // 0
+        0x12, 0x1F, 0x10, 0x00, // 1
+        0x12, 0x19, 0x15, 0x12, // 2
+        0x11, 0x11, 0x15, 0x0A, // 3
+        0x07, 0x04, 0x1F, 0x04, // 4
+        0x17, 0x15, 0x15, 0x09, // 5
+        0x0E, 0x15, 0x15, 0x09, // 6
+        0x11, 0x09, 0x05, 0x03, // 7
+        0x0A, 0x15, 0x15, 0x0A, // 8
+        0x02, 0x05, 0x15, 0x0E, // 9
+        0x04, 0x04, 0x04, 0x04, // -
+        0x00, 0x10, 0x10, 0x00, // .
+};
+uint16_t colours[] = { WHITE, CYAN, YELLOW, RED };
+void blitCharacterVSlice(char packedCharacter, char xSlice, char bufferOffset) {
+    char character = packedCharacter & 0x0F;
+    if (character == charSpace || xSlice == 4)
+        return;
+    uint16_t c = colours[packedCharacter >> 4];
+    char slice = character * 4 + xSlice;
+    uint16_t *p = &colourBuffer[bufferOffset];
+    uint8_t fontslice = vfont[slice];
+    for (char i = 0; i < 5; i++) {
+        if (fontslice & 0x01) {
+            p[0] = c;
+        }
+        if (fontslice & 0x02) {
+            p[1] = c;
+        }
+        if (fontslice & 0x04) {
+            p[2] = c;
+        }
+        if (fontslice & 0x08) {
+            p[3] = c;
+        }
+        if (fontslice & 0x10) {
+            p[4] = c;
+        }
+    }
+}
 
 // This is relatively fast.
 void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
+    bool hasCharsX = x < 6 * 5;
+    char charCol = x / 5;
+    char xBit = x % 5;
     for (int band = 0; band < 8; band++) {
         int ystart = band * 16;
         int yend = ystart + 16;
@@ -297,18 +268,30 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
             colourBuffer[y++] = brown;
         }
         yintercept -= 16;
-        // Overlay "text"
-        if (band == 0) {
-            colourBuffer[0] = WHITE;
-            colourBuffer[4] = WHITE;
-            colourBuffer[8] = WHITE;
-            colourBuffer[12] = WHITE;
+
+        if (hasCharsX && ystart < 7 * 8) {
+            char charRow = ystart / 8;
+            char charIndex = charCol + charRow * 6;
+            char character = characters[charIndex];
+            blitCharacterVSlice(character, xBit, 0);
+            if (charRow < 6) {
+                character = characters[charIndex + 6];
+                blitCharacterVSlice(character, xBit, 8);
+            }
         }
+        // Overlay "text"
+//        if (band == 0) {
+//            colourBuffer[0] = WHITE;
+//            colourBuffer[4] = WHITE;
+//            colourBuffer[8] = WHITE;
+//            colourBuffer[12] = WHITE;
+//        }
         tft.writePixels(colourBuffer, 16, true, false);
     }
 }
 
 int16_t test = 0;
+uint16_t lastFrame = millis();
 
 void drawHorizon() {
     sensors_event_t a, g, temp;
@@ -316,9 +299,12 @@ void drawHorizon() {
     printToBuffer(0, 0, a.acceleration.x);
     printToBuffer(1, 0, a.acceleration.y);
     printToBuffer(2, 0, a.acceleration.z);
-//    printValue(a.acceleration.x, 0);
-//    printValue(a.acceleration.y, 1);
-//    printValue(a.acceleration.z, 2);
+    printToBuffer(6, 2, temp.temperature);
+
+    uint16_t now = millis();
+    float fps = 1000 / (now - lastFrame);
+    printToBuffer(4, 1, fps);
+    lastFrame = now;
 
     // Transaction
     tft.startWrite();
@@ -332,21 +318,11 @@ void drawHorizon() {
     test ++;
 
 
+
     // Draw the horizon - brown below the line, blue above.
     for (int16_t x = 0; x < 128; x++) {
         y = m * x + c + 64;
-        // Draw 0-y as blue
-//        drawHorizonVLineRunLength(x, y);
         drawHorizonVWritePixels(x, y);
-
-//        if (y > 0) {
-//            tft.writeFillRectPreclipped(x, 0, 1, y, blue);
-////            tft.writeFastVLine(x, 0, y, blue);
-//        }
-//        if (y < 128) {
-//            tft.writeFillRectPreclipped(x, y, 1, 127-y, brown);
-////            tft.writeFastVLine(x, y, 127-y, brown);
-//        }
     }
 
     tft.endWrite();
