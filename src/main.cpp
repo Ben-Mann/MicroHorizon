@@ -52,18 +52,21 @@
 #include <Adafruit_Sensor.h>
 #include <SPI.h>
 
+
 // Option 1: use any pins but a little slower
-Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN, DC_PIN, MOSI_PIN, SCLK_PIN, RST_PIN);
-Adafruit_MPU6050 mpu;
-char hasMpu = 0;
+//Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN, DC_PIN, MOSI_PIN, SCLK_PIN, RST_PIN);
 
 // Option 2: must use the hardware SPI pins
 // (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
 // an output. This is much faster - also required if you want
 // to use the microSD card (see the image drawing example)
-//Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PIN, DC_PIN, RST_PIN);
+Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PIN, DC_PIN, RST_PIN);
+
+Adafruit_MPU6050 mpu;
+char hasMpu = 0;
 
 float p = 3.1415926;
+
 
 
 
@@ -260,6 +263,7 @@ void lcdTestPattern(void)
 void setup(void) {
     Serial.begin(9600);
     Serial.print("hello!");
+    pinMode(10, OUTPUT);
     tft.begin();
 
     Serial.println("init");
