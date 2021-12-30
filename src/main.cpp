@@ -284,12 +284,30 @@ char target[] = { 64, 64, 64, 64, 64, 64, 65, 66, 67, 66, 65, 64, 64, 64, 64, 64
 
 #define AVR_WRITESPI(x) for (SPDR = (x); (!(SPSR & _BV(SPIF)));)
 
-void _writePixels(uint16_t *colors, uint32_t len) {
+
+// A loop-unrollled bulk paint, since the loop is actually significant
+void _write128Pixels(uint16_t *colors) {
     uint8_t *buf = (uint8_t *) colors;
-    uint8_t *end = buf + (len << 1);
+    uint8_t *end = buf + 256;
     while (buf < end) {
+        // 8 pixel block {{
         AVR_WRITESPI(*buf++);
         AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
+        // }}
     }
 }
 
@@ -350,7 +368,7 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
         colourBuffer[target[x - 56]] = X_Yellow;
     }
 
-    _writePixels(colourBuffer, 128);
+    _write128Pixels(colourBuffer);
 }
 
 int16_t test = 0;
