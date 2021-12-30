@@ -346,7 +346,7 @@ void drawHorizon() {
     printToBuffer(6, 2, temp.temperature);
 
     uint16_t now = millis();
-    float fps = 1000 / (now - lastFrame);
+    float fps = 1000.0f / (now - lastFrame); // (now - lastFrame) / 100.0f; //
     printToBuffer(5, 1, fps);
     lastFrame = now;
 
