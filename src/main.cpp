@@ -87,9 +87,11 @@ void printLn(char *text) {
 }
 
 void setup(void) {
+    // SPI.setClockDivider(SPI_CLOCK_DIV2); // Does nothing, it's already at max freq.
     Serial.begin(9600);
     Serial.print("hello!");
     pinMode(10, OUTPUT);
+    pinMode(8, OUTPUT);
     tft.begin();
 
     Serial.println("init");
@@ -413,6 +415,7 @@ Vector vecForward = { .x = -1, .y = 0, .z = 0 };
 // For alternate MPU6050 code.
 long duration = 0;
 void drawHorizon() {
+    digitalWrite(8, LOW);
     long start = millis();
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
@@ -458,8 +461,11 @@ void drawHorizon() {
     printToBuffer(3, 1, (computeTime - start) / 100.0f);
     printToBuffer(4, 1, (duration) / 100.0f);
 
+    drawHorizonVWritePixels(0, c);
+
+    digitalWrite(8, HIGH);
     // Draw the horizon - brown below the line, blue above.
-    for (int16_t x = 0; x < 128; x++) {
+    for (int16_t x = 1; x < 128; x++) {
         drawHorizonVWritePixels(x, m * x + c);
     }
 
