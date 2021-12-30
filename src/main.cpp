@@ -205,9 +205,23 @@ void printToBuffer(char row, char colourIndex, float value) {
 
 // 16bit colours are 5 bits red, 6 bits green, 5 bits blue
 // 116, 203, 255
-const uint16_t blue = 0x733F; // 01110 011001 11111
+//#define X_Blue 0x3F73
+//// 179, 121, 41
+//#define X_Brown 0xC563
+//#define X_Yellow 0xE0FF
+//#define X_White 0xFFFF
+//#define X_Cyan 0xFF07
+//#define X_Red 0x00F8
+//#define X_Green 0xE007
+
+const uint16_t X_Blue = 0x3F73;
 // 179, 121, 41
-const uint16_t brown = 0x63C5; // 01100 011110 00101
+const uint16_t X_Brown = 0xC563;
+const uint16_t X_Yellow = 0xE0FF;
+const uint16_t X_White = 0xFFFF;
+const uint16_t X_Cyan = 0xFF07;
+const uint16_t X_Red = 0x00F8;
+const uint16_t X_Green = 0xE007;
 
 uint16_t colourBuffer[128] = {};
 
@@ -232,7 +246,7 @@ uint8_t vfont[] = {
         0x04, 0x04, 0x04, 0x04, // -
         0x00, 0x10, 0x10, 0x00, // .
 };
-uint16_t colours[] = { WHITE, CYAN, YELLOW, RED };
+uint16_t colours[] = { X_White, X_Cyan, X_Yellow, X_Red };
 void blitCharacterVSlice(char packedCharacter, char xSlice, char bufferOffset) {
     char character = packedCharacter & 0x0F;
     if (character == charSpace || xSlice == 4)
@@ -274,9 +288,8 @@ void _writePixels(uint16_t *colors, uint32_t len) {
     uint8_t *buf = (uint8_t *) colors;
     uint8_t *end = buf + (len << 1);
     while (buf < end) {
-        AVR_WRITESPI(buf[1]);
-        AVR_WRITESPI(*buf);
-        buf += 2;
+        AVR_WRITESPI(*buf++);
+        AVR_WRITESPI(*buf++);
     }
 }
 
@@ -310,18 +323,18 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
     int y = 0;
     if (yintercept < 0) {
         while (y < 128) {
-            colourBuffer[y++] = brown;
+            colourBuffer[y++] = X_Brown;
         }
     } else if (yintercept > 127) {
         while (y < 128) {
-            colourBuffer[y++] = blue;
+            colourBuffer[y++] = X_Blue;
         }
     } else {
         while (y < yintercept) {
-            colourBuffer[y++] = blue;
+            colourBuffer[y++] = X_Blue;
         }
         while (y < 128) {
-            colourBuffer[y++] = brown;
+            colourBuffer[y++] = X_Brown;
         }
     }
 
@@ -334,7 +347,7 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
     }
 
     if (x >= 56 && x <= 72) {
-        colourBuffer[target[x - 56]] = YELLOW;
+        colourBuffer[target[x - 56]] = X_Yellow;
     }
 
     _writePixels(colourBuffer, 128);
