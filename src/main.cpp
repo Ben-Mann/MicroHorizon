@@ -288,27 +288,296 @@ char target[] = { 64, 64, 64, 64, 64, 64, 65, 66, 67, 66, 65, 64, 64, 64, 64, 64
 // A loop-unrollled bulk paint, since the loop is actually significant
 void _write128Pixels(uint16_t *colors) {
     uint8_t *buf = (uint8_t *) colors;
-    uint8_t *end = buf + 256;
-    while (buf < end) {
-        // 8 pixel block {{
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        // }}
-    }
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+// 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+// 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+// 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+    // 8 pixel block {{
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    AVR_WRITESPI(*buf++);
+    // }}
+
+
 }
 
 #define SPI_DC_LOW() *dcPort &= ~(dcPinMaskSet)
