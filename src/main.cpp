@@ -200,7 +200,7 @@ const uint16_t blue = 0x733F; // 01110 011001 11111
 // 179, 121, 41
 const uint16_t brown = 0x63C5; // 01100 011110 00101
 
-uint16_t colourBuffer[16] = {};
+uint16_t colourBuffer[128] = {};
 
 //  xx   x    xx  xxx  x x  xxxx  xxx xxxx  xx   xx
 // x  x xx   x  x    x x x  x    x       x x  x x  x
@@ -251,8 +251,13 @@ void blitCharacterVSlice(char packedCharacter, char xSlice, char bufferOffset) {
     }
 }
 
+// Overlay --v--
+// xxxxxx     xxxxxx
+//       x   x
+//        x x
+//         x
 //               56          60          64                70    72
-char target[] = { 0, 0, 0, 0, 0, 0, 1, 2, 3, 2, 1, 0, 0, 0, 0, 0, 0 };
+char target[] = { 64, 64, 64, 64, 64, 64, 65, 66, 67, 66, 65, 64, 64, 64, 64, 64, 64 };
 
 #define AVR_WRITESPI(x) for (SPDR = (x); (!(SPSR & _BV(SPIF)));)
 
@@ -271,42 +276,39 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
     bool hasCharsX = x < 6 * 5;
     char charCol = x / 5;
     char xBit = x % 5;
-    for (int band = 0; band < 8; band++) {
-        int ystart = band * 16;
-        int yend = ystart + 16;
-        tft.setAddrWindow(x, ystart, 1, 16);
-        int y = 0;
-        while (y < yintercept && y < 16) {
-            colourBuffer[y++] = blue;
-        }
-        while (y >= yintercept && y < 16) {
+    tft.setAddrWindow(x, 0, 1, 128);
+    int y = 0;
+    if (yintercept < 0) {
+        while (y < 128) {
             colourBuffer[y++] = brown;
         }
-        yintercept -= 16;
+    } else if (yintercept > 127) {
+        while (y < 128) {
+            colourBuffer[y++] = blue;
+        }
+    } else {
+        while (y < yintercept) {
+            colourBuffer[y++] = blue;
+        }
+        while (y < 128) {
+            colourBuffer[y++] = brown;
+        }
+    }
 
-        if (hasCharsX && ystart < 7 * 8) {
-            char charRow = ystart / 8;
+    if (hasCharsX) {
+        for (int charRow = 0; charRow < 7; charRow++) {
             char charIndex = charCol + charRow * 6;
             char character = characters[charIndex];
-            blitCharacterVSlice(character, xBit, 0);
-            if (charRow < 6) {
-                character = characters[charIndex + 6];
-                blitCharacterVSlice(character, xBit, 8);
-            }
+            blitCharacterVSlice(character, xBit, charRow << 3);
         }
-
-        // Overlay --v--
-        // xxxxxx     xxxxxx
-        //       x   x
-        //        x x
-        //         x
-        if (band == 4 && x >= 56 && x <= 72) {
-            colourBuffer[target[x - 56]] = YELLOW;
-        }
-
-        // tft.writePixels(colourBuffer, 16, true, false);
-        _writePixels(colourBuffer, 16);
     }
+
+    if (x >= 56 && x <= 72) {
+        colourBuffer[target[x - 56]] = YELLOW;
+    }
+
+    //tft.writePixels(colourBuffer, 16, true, false);
+    _writePixels(colourBuffer, 128);
 }
 
 int16_t test = 0;
