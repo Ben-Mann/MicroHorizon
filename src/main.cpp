@@ -256,13 +256,13 @@ char target[] = { 0, 0, 0, 0, 0, 0, 1, 2, 3, 2, 1, 0, 0, 0, 0, 0, 0 };
 
 #define AVR_WRITESPI(x) for (SPDR = (x); (!(SPSR & _BV(SPIF)));)
 
-// FPS was 5.68-5.71. After adding this, it's 7.57
 void _writePixels(uint16_t *colors, uint32_t len) {
-    while (len--) {
-//        SPI_WRITE16(*colors++);
-        uint16_t w = *colors++;
-        AVR_WRITESPI(w >> 8);
-        AVR_WRITESPI(w);
+    uint8_t *buf = (uint8_t *) colors;
+    uint8_t *end = buf + (len << 1);
+    while (buf < end) {
+        AVR_WRITESPI(buf[1]);
+        AVR_WRITESPI(*buf);
+        buf += 2;
     }
 }
 
