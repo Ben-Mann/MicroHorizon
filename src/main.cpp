@@ -251,6 +251,9 @@ void blitCharacterVSlice(char packedCharacter, char xSlice, char bufferOffset) {
     }
 }
 
+//               56          60          64                70    72
+char target[] = { 0, 0, 0, 0, 0, 0, 1, 2, 3, 2, 1, 0, 0, 0, 0, 0, 0 };
+
 // This is relatively fast.
 void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
     bool hasCharsX = x < 6 * 5;
@@ -279,13 +282,16 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
                 blitCharacterVSlice(character, xBit, 8);
             }
         }
-        // Overlay "text"
-//        if (band == 0) {
-//            colourBuffer[0] = WHITE;
-//            colourBuffer[4] = WHITE;
-//            colourBuffer[8] = WHITE;
-//            colourBuffer[12] = WHITE;
-//        }
+
+        // Overlay --v--
+        // xxxxxx     xxxxxx
+        //       x   x
+        //        x x
+        //         x
+        if (band == 4 && x >= 56 && x <= 72) {
+            colourBuffer[target[x - 56]] = YELLOW;
+        }
+
         tft.writePixels(colourBuffer, 16, true, false);
     }
 }
@@ -293,9 +299,47 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
 int16_t test = 0;
 uint16_t lastFrame = millis();
 
+typedef struct {
+    float x, y, z;
+} Vector;
+
+#define vecLengthSq(v) ((v).x*(v).x + (v).y*(v).y + (v).z*(v).z)
+#define vecLength(v) (sqrtf(vecLengthSq(v)))
+
+//float vecLength(Vector v) {
+//    return sqrtf(vecLengthSq(v));
+//}
+
+void vecNormalise(Vector &v) {
+    float length = vecLength(v);
+    v.x /= length;
+    v.y /= length;
+    v.z /= length;
+}
+
+Vector vecCrossProduct(Vector &v1, Vector &v2) {
+    Vector result = {};
+    result.x = v1.y*v2.z - v1.z*v2.y;
+    result.y = v1.z*v2.x - v1.x*v2.z;
+    result.z = v1.x*v2.y - v1.y*v2.x;
+    return result;
+}
+
+#define dotProduct(v1, v2) ((v1).x*(v2).x + (v1).y*(v2).y + (v1).z*(v2).z)
+
+Vector vecForward = { .x = -1, .y = 0, .z = 0 };
+
+//float dotProduct(Vector v1, Vector v2) {
+//    return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
+//}
+
+// See https://create.arduino.cc/projecthub/MinukaThesathYapa/arduino-mpu6050-accelerometer-f92d8b
+// For alternate MPU6050 code.
+
 void drawHorizon() {
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
+    // printToBuffer(3, 1, g.gyro.pitch);
     printToBuffer(0, 0, a.acceleration.x);
     printToBuffer(1, 0, a.acceleration.y);
     printToBuffer(2, 0, a.acceleration.z);
@@ -303,17 +347,32 @@ void drawHorizon() {
 
     uint16_t now = millis();
     float fps = 1000 / (now - lastFrame);
-    printToBuffer(4, 1, fps);
+    printToBuffer(5, 1, fps);
     lastFrame = now;
 
     // Transaction
     tft.startWrite();
 
+    // Build a vector to "down", and normalise it, ie 0,0,1
+    // given our forward vector is -1,0,0 (depends on sensor orientation),
+    // cross product of forward and down should correlate with horizon slope?
+    // and angle between forward and down gives horizon offset?
+    // dot product of forward and down gives us the cos of the angle between them
+    Vector accel = { .x = a.acceleration.x, .y = a.acceleration.y, .z = a.acceleration.z };
+    vecNormalise(accel);
+    float cosPitch = dotProduct(accel, vecForward);
+    Vector vecSide = vecCrossProduct(accel, vecForward);
+    float m = vecSide.z / vecSide.y;
+
+    printToBuffer(3, 1, m);
+    printToBuffer(4, 1, cosPitch);
+
     // Find the equation of a line which expresses the horizon.
     // Using slope-intercept y = mx + c. Note that we will need
     // special handling to cope with 90 degrees, since m will be INF
-    float m = 0;
-    float c = 0 + test % 128 - 64;
+    // float m = 0;
+    // float c = 0 + test % 128 - 64;
+    float c = -70 * cosPitch;
     int16_t y = 0;
     test ++;
 
@@ -321,7 +380,7 @@ void drawHorizon() {
 
     // Draw the horizon - brown below the line, blue above.
     for (int16_t x = 0; x < 128; x++) {
-        y = m * x + c + 64;
+        y = m * (x - 64) + c + 64;
         drawHorizonVWritePixels(x, y);
     }
 
