@@ -66,52 +66,19 @@ Adafruit_MPU6050 mpu;
 char hasMpu = 0;
 
 // DC_PIN
-uint8_t dcPinMaskSet; // = digitalPinToBitMask(DC_PIN);
+uint8_t dcPinMaskSet;
 volatile uint8_t *dcPort;
-//dcPort = (PORTreg_t)portOutputRegister(digitalPinToPort(dc));
 #define digitalPinToPort(P) ( pgm_read_byte( digital_pin_to_port_PGM + (P) ) )
 
-float p = 3.1415926;
-
-void testdrawtext(char *text, uint16_t color) {
-    tft.setCursor(0,0);
-    tft.setTextColor(color);
-    tft.print(text);
-}
-
-char line = 0;
-void printLn(char *text) {
-    tft.setCursor(0, line);
-    tft.print(text);
-    line += 12;
-}
+const float p = 3.1415926;
 
 void setup(void) {
     // SPI.setClockDivider(SPI_CLOCK_DIV2); // Does nothing, it's already at max freq.
-    Serial.begin(9600);
-    Serial.print("hello!");
+    pinMode(LED_BUILTIN, OUTPUT); // Flash the built-in LED if we failed init.
+    digitalWrite(LED_BUILTIN, HIGH);
     pinMode(10, OUTPUT);
     pinMode(8, OUTPUT);
     tft.begin();
-
-    Serial.println("init");
-
-    // You can optionally rotate the display by running the line below.
-    // Note that a value of 0 means no rotation, 1 means 90 clockwise,
-    // 2 means 180 degrees clockwise, and 3 means 270 degrees clockwise.
-    //tft.setRotation(1);
-    // NOTE: The test pattern at the start will NOT be rotated!  The code
-    // for rendering the test pattern talks directly to the display and
-    // ignores any rotation.
-
-    uint16_t time = millis();
-    tft.fillRect(0, 0, 128, 128, BLACK);
-    time = millis() - time;
-
-    Serial.println(time, DEC);
-
-    tft.setTextColor(GREEN);
-    printLn("Artificial Horizon v0.9");
 
     dcPinMaskSet = digitalPinToBitMask(DC_PIN);
     dcPort = portOutputRegister(digitalPinToPort(DC_PIN));
@@ -121,54 +88,10 @@ void setup(void) {
         mpu.setAccelerometerRange(MPU6050_RANGE_16_G);
         mpu.setGyroRange(MPU6050_RANGE_250_DEG);
         mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-        printLn("MPU initialised.");
     } else {
-        testdrawtext("Cannot initialise MPU", RED);
     }
-    delay(500);
-     tft.fillScreen(BLACK);
+    digitalWrite(LED_BUILTIN, LOW);
 }
-
-float v[7] = { 0, 0, 0, 0, 0, 0, 0 };
-//char first = 1;
-
-void printValue(float value, int index) {
-    int y = index * 12;
-//    if (!first) {
-//        tft.setTextColor(BLACK);
-//        tft.setCursor(0, y);
-//        tft.print(v[index]);
-//    }
-    tft.setTextColor(index < 3 ? WHITE : index < 6 ? YELLOW : CYAN);
-    tft.setCursor(0, y);
-    tft.print(value);
-    v[index] = value;
-}
-
-void testMpu6050() {
-    sensors_event_t a, g, temp;
-    mpu.getEvent(&a, &g, &temp);
-
-//    printValue(a.acceleration.x, 0);
-//    printValue(a.acceleration.y, 1);
-//    printValue(a.acceleration.z, 2);
-//
-//    printValue(g.gyro.x, 3);
-//    printValue(g.gyro.y, 4);
-//    printValue(g.gyro.z, 5);
-//
-//    printValue(temp.temperature, 6);
-//    first = 0;
-}
-
-// We want to display numbers, and we want to do that very fast.
-// Rather than building a RAM buffer - we don't have much RAM -
-// we can hardcode our digit renderers. And rather than overlaying
-// it, and double-rendering and introducing flicker, it's far quicker
-// to do all rendering in one pass. Without memory for a frame buffer,
-// we therefore need to do this in our hardcoded write function.
-// Either that, or we use 10% of the chip's memory as a row or column
-// buffer, and write only to that.
 
 const char charNeg = 10;
 const char charDot = 11;
@@ -205,19 +128,7 @@ void printToBuffer(char row, char colourIndex, float value) {
     characters[offset + 1] = colourBits | (ivalue == 0 ? charSpace : ivalue % 10);
 }
 
-// 16bit colours are 5 bits red, 6 bits green, 5 bits blue
-// 116, 203, 255
-//#define X_Blue 0x3F73
-//// 179, 121, 41
-//#define X_Brown 0xC563
-//#define X_Yellow 0xE0FF
-//#define X_White 0xFFFF
-//#define X_Cyan 0xFF07
-//#define X_Red 0x00F8
-//#define X_Green 0xE007
-
 const uint16_t X_Blue = 0x3F73;
-// 179, 121, 41
 const uint16_t X_Brown = 0xC563;
 const uint16_t X_Yellow = 0xE0FF;
 const uint16_t X_White = 0xFFFF;
@@ -232,8 +143,6 @@ uint16_t colourBuffer[128] = {};
 // x  x  x     x    x  xxxx xxx  xxx    x   xx   xxx xxxx
 // x  x  x    x      x   x     x x  x  x   x  x    x
 //  xx  xxx  xxxx xxx    x  xxx   xx  x     xx    x        xx
-// 01100111001111011100001
-// E11E02F00029520115A074F
 uint8_t vfont[] = {
         0x0E, 0x11, 0x11, 0x0E, // 0
         0x12, 0x1F, 0x10, 0x00, // 1
@@ -276,17 +185,11 @@ void blitCharacterVSlice(char packedCharacter, char xSlice, char bufferOffset) {
     }
 }
 
-// Overlay --v--
-// xxxxxx     xxxxxx
-//       x   x
-//        x x
-//         x
-//               56          60          64                70    72
+// Overlay --v-- shape
 char target[] = { 64, 64, 64, 64, 64, 64, 65, 66, 67, 66, 65, 64, 64, 64, 64, 64, 64 };
 
 // stuff a byte into the SPI data register, and then poll until it gets shifted out
 #define AVR_WRITESPI(x) for (SPDR = (x); (!(SPSR & _BV(SPIF)));)
-
 
 // A loop-unrollled bulk paint, since the loop is actually significant
 void _writePixels(uint16_t *colors, uint16_t y1, uint16_t y2) {
@@ -318,7 +221,6 @@ void _setAddrWindow(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
     AVR_WRITESPI(y2);
     _writeCommand(SSD1351_CMD_WRITERAM); // Begin write
 }
-
 
 // This is relatively fast.
 void drawHorizonVWritePixels(int16_t x, int16_t yintercept, int16_t old_yintercept) {
@@ -374,10 +276,6 @@ typedef struct {
 #define vecLengthSq(v) ((v).x*(v).x + (v).y*(v).y + (v).z*(v).z)
 #define vecLength(v) (sqrtf(vecLengthSq(v)))
 
-//float vecLength(Vector v) {
-//    return sqrtf(vecLengthSq(v));
-//}
-
 void vecNormalise(Vector &v) {
     float length = vecLength(v);
     v.x /= length;
@@ -399,10 +297,6 @@ Vector vecForward = { .x = -1, .y = 0, .z = 0 };
 
 float old_m = 0;
 float old_c = 129;
-
-//float dotProduct(Vector v1, Vector v2) {
-//    return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
-//}
 
 // See https://create.arduino.cc/projecthub/MinukaThesathYapa/arduino-mpu6050-accelerometer-f92d8b
 // For alternate MPU6050 code.
@@ -439,14 +333,9 @@ void drawHorizon() {
     Vector vecSide = vecCrossProduct(accel, vecForward);
     float m = vecSide.z / vecSide.y;
 
-//    printToBuffer(3, 1, m);
-//    printToBuffer(4, 1, cosPitch);
-
     // Find the equation of a line which expresses the horizon.
     // Using slope-intercept y = mx + c. Note that we will need
     // special handling to cope with 90 degrees, since m will be INF
-    // float m = 0;
-    // float c = 0 + test % 128 - 64;
     float c = -70 * cosPitch + 64 - m * 64; // the m*64 is so we don't have to m*(x-64) each loop
 
     long computeTime = millis();
@@ -473,7 +362,10 @@ void drawHorizon() {
 void loop() {
     if (hasMpu == 1) {
         drawHorizon();
-        //testMpu6050();
-        //delay(100);
+    } else {
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(500);
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(500);
     }
 }
