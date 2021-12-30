@@ -348,10 +348,13 @@ Vector vecForward = { .x = -1, .y = 0, .z = 0 };
 
 // See https://create.arduino.cc/projecthub/MinukaThesathYapa/arduino-mpu6050-accelerometer-f92d8b
 // For alternate MPU6050 code.
-
+long duration = 0;
 void drawHorizon() {
+    long start = millis();
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
+    long mpuTime = millis();
+
     // printToBuffer(3, 1, g.gyro.pitch);
     printToBuffer(0, 0, a.acceleration.x);
     printToBuffer(1, 0, a.acceleration.y);
@@ -377,25 +380,27 @@ void drawHorizon() {
     Vector vecSide = vecCrossProduct(accel, vecForward);
     float m = vecSide.z / vecSide.y;
 
-    printToBuffer(3, 1, m);
-    printToBuffer(4, 1, cosPitch);
+//    printToBuffer(3, 1, m);
+//    printToBuffer(4, 1, cosPitch);
 
     // Find the equation of a line which expresses the horizon.
     // Using slope-intercept y = mx + c. Note that we will need
     // special handling to cope with 90 degrees, since m will be INF
     // float m = 0;
     // float c = 0 + test % 128 - 64;
-    float c = -70 * cosPitch;
-    int16_t y = 0;
-    test ++;
+    float c = -70 * cosPitch + 64 - m * 64; // the m*64 is so we don't have to m*(x-64) each loop
 
+    long computeTime = millis();
 
+    printToBuffer(3, 1, (computeTime - start) / 100.0f);
+    printToBuffer(4, 1, (duration) / 100.0f);
 
     // Draw the horizon - brown below the line, blue above.
     for (int16_t x = 0; x < 128; x++) {
-        y = m * (x - 64) + c + 64;
-        drawHorizonVWritePixels(x, y);
+        drawHorizonVWritePixels(x, m * x + c);
     }
+
+    duration = millis() - computeTime;
 
     tft.endWrite();
 }
