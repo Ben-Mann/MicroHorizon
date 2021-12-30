@@ -282,6 +282,7 @@ void blitCharacterVSlice(char packedCharacter, char xSlice, char bufferOffset) {
 //               56          60          64                70    72
 char target[] = { 64, 64, 64, 64, 64, 64, 65, 66, 67, 66, 65, 64, 64, 64, 64, 64, 64 };
 
+// stuff a byte into the SPI data register, and then poll until it gets shifted out
 #define AVR_WRITESPI(x) for (SPDR = (x); (!(SPSR & _BV(SPIF)));)
 
 
