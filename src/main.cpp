@@ -23,9 +23,8 @@
   Be sure to install it!
  ****************************************************/
 
-// Screen dimensions
-#define SCREEN_WIDTH  128
-#define SCREEN_HEIGHT 128 // Change this to 96 for 1.27" OLED.
+#define SCREEN_SIZE  128
+#define LAST_SCREEN_INDEX (SCREEN_SIZE - 1)
 
 // You can use any (4 or) 5 pins
 #define SCLK_PIN 2
@@ -34,33 +33,15 @@
 #define CS_PIN   5
 #define RST_PIN  6
 
-// Color definitions
-#define	BLACK           0x0000
-#define	BLUE            0x001F
-#define	RED             0xF800
-#define	GREEN           0x07E0
-#define CYAN            0x07FF
-#define MAGENTA         0xF81F
-#define YELLOW          0xFFE0
-#define WHITE           0xFFFF
+// Documentation asks us to set this in order to use hardware SPI?
+#define SPI_ALT_PIN 10
 
-#define RUN_TEST_PATTERNS 0
+// Use to trigger the DSO for timing analysis
+#define DSO_TEST_PIN 8
 
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1351.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <SPI.h>
-
-
-// Option 1: use any pins but a little slower
-//Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN, DC_PIN, MOSI_PIN, SCLK_PIN, RST_PIN);
-
-// Option 2: must use the hardware SPI pins
-// (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
-// an output. This is much faster - also required if you want
-// to use the microSD card (see the image drawing example)
-Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PIN, DC_PIN, RST_PIN);
 
 Adafruit_MPU6050 mpu;
 char hasMpu = 0;
@@ -68,20 +49,156 @@ char hasMpu = 0;
 // DC_PIN
 uint8_t dcPinMaskSet;
 volatile uint8_t *dcPort;
+uint8_t csPinMaskSet;
+volatile uint8_t *csPort;
 #define digitalPinToPort(P) ( pgm_read_byte( digital_pin_to_port_PGM + (P) ) )
 
 const float p = 3.1415926;
+const long spiClockSpeedHz = 8000000L;
+
+SPISettings spiSettings = SPISettings(spiClockSpeedHz, MSBFIRST, SPI_MODE0);
+SPIClass *spi;
+
+#define SSD1351_CMD_SETCOLUMN 0x15      ///< See datasheet
+#define SSD1351_CMD_SETROW 0x75         ///< See datasheet
+#define SSD1351_CMD_WRITERAM 0x5C       ///< See datasheet
+#define SSD1351_CMD_SETREMAP 0xA0       ///< See datasheet
+#define SSD1351_CMD_STARTLINE 0xA1      ///< See datasheet
+#define SSD1351_CMD_DISPLAYOFFSET 0xA2  ///< See datasheet
+#define SSD1351_CMD_NORMALDISPLAY 0xA6  ///< See datasheet
+#define SSD1351_CMD_INVERTDISPLAY 0xA7  ///< See datasheet
+#define SSD1351_CMD_FUNCTIONSELECT 0xAB ///< See datasheet
+#define SSD1351_CMD_DISPLAYOFF 0xAE     ///< See datasheet
+#define SSD1351_CMD_DISPLAYON 0xAF      ///< See datasheet
+#define SSD1351_CMD_PRECHARGE 0xB1      ///< See datasheet
+#define SSD1351_CMD_CLOCKDIV 0xB3       ///< See datasheet
+#define SSD1351_CMD_SETVSL 0xB4         ///< See datasheet
+#define SSD1351_CMD_SETGPIO 0xB5        ///< See datasheet
+#define SSD1351_CMD_PRECHARGE2 0xB6     ///< See datasheet
+#define SSD1351_CMD_VCOMH 0xBE          ///< See datasheet
+#define SSD1351_CMD_CONTRASTABC 0xC1    ///< See datasheet
+#define SSD1351_CMD_CONTRASTMASTER 0xC7 ///< See datasheet
+#define SSD1351_CMD_MUXRATIO 0xCA       ///< See datasheet
+#define SSD1351_CMD_COMMANDLOCK 0xFD    ///< See datasheet
+
+// stuff a byte into the SPI data register, and then poll until it gets shifted out
+#define AVR_WRITESPI(x) for (SPDR = (x); (!(SPSR & _BV(SPIF)));)
+#define SPI_DC_LOW() *dcPort &= ~(dcPinMaskSet)
+#define SPI_DC_HIGH() *dcPort |= dcPinMaskSet
+#define SPI_CS_LOW() *csPort &= (~csPinMaskSet)
+#define SPI_CS_HIGH() *csPort |= csPinMaskSet
+
+// Not using chip select
+void spiStartWrite() {
+    SPI.beginTransaction(spiSettings);
+    *csPort &= (~csPinMaskSet);
+}
+
+void spiEndWrite() {
+    *csPort |= csPinMaskSet;
+    SPI.endTransaction();
+}
+
+void spiWriteCommand(uint8_t cmd) {
+    SPI_DC_LOW();
+    AVR_WRITESPI(cmd);
+    SPI_DC_HIGH();
+}
+
+void spiWriteProgMemCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes) {
+    SPI.beginTransaction(spiSettings);
+    SPI_CS_LOW();
+
+    SPI_DC_LOW();          // Command mode
+    AVR_WRITESPI(commandByte); // Send the command byte
+
+    SPI_DC_HIGH();
+    for (int i = 0; i < numDataBytes; i++) {
+        AVR_WRITESPI(pgm_read_byte(dataBytes++));
+    }
+
+    SPI_CS_HIGH();
+    SPI.endTransaction();
+}
+
+typedef struct {
+    float x, y, z;
+} Vector;
+
+#define vecLengthSq(v) ((v).x*(v).x + (v).y*(v).y + (v).z*(v).z)
+#define vecLength(v) (sqrtf(vecLengthSq(v)))
+#define dotProduct(v1, v2) ((v1).x*(v2).x + (v1).y*(v2).y + (v1).z*(v2).z)
+
+Vector vecForward = { .x = -1, .y = 0, .z = 0 };
+
+float old_m = 0;
+float old_c = 129;
+boolean first = true;
+uint16_t lastFrame = millis();
+
+// See Adafruit_SSD1351 for a reference example
+static const uint8_t PROGMEM lcdBoot[] = {
+        SSD1351_CMD_COMMANDLOCK,    1, 0x12,
+        SSD1351_CMD_COMMANDLOCK,    1, 0xB1,
+        SSD1351_CMD_DISPLAYOFF,     0,
+        SSD1351_CMD_CLOCKDIV,       1, 0xF1, // 7:4 = Oscillator Freq, 3:0 = CLK Div Ratio (A[3:0]+1 = 1..16)
+        SSD1351_CMD_MUXRATIO,       1, 127,
+        SSD1351_CMD_DISPLAYOFFSET,  1, 0x0,
+        SSD1351_CMD_SETGPIO,        1, 0x00,
+        SSD1351_CMD_FUNCTIONSELECT, 1, 0x01, // internal (diode drop)
+        SSD1351_CMD_PRECHARGE,      1, 0x32,
+        SSD1351_CMD_VCOMH,          1, 0x05,
+        SSD1351_CMD_NORMALDISPLAY,  0,
+        SSD1351_CMD_CONTRASTABC,    3, 0xC8, 0x80, 0xC8,
+        SSD1351_CMD_CONTRASTMASTER, 1, 0x0F,
+        SSD1351_CMD_SETVSL,         3, 0xA0, 0xB5, 0x55,
+        SSD1351_CMD_PRECHARGE2,     1, 0x01,
+        SSD1351_CMD_DISPLAYON,      0,  // Main screen turn on
+        SSD1351_CMD_SETREMAP,       1, 0b01100100 | 0b00010000,
+        SSD1351_CMD_STARTLINE,      1, SCREEN_SIZE,
+        0}; // END OF COMMAND LIST
+
+void displaySetup() {
+    csPinMaskSet = digitalPinToBitMask(CS_PIN);
+    csPort = portOutputRegister(digitalPinToPort(CS_PIN));
+
+    pinMode(CS_PIN, OUTPUT);
+    digitalWrite(CS_PIN, HIGH);
+    pinMode(DC_PIN, OUTPUT);
+    digitalWrite(DC_PIN, HIGH); // Data mode
+
+    SPI.begin();
+
+    pinMode(RST_PIN, OUTPUT);
+    digitalWrite(RST_PIN, HIGH);
+    delay(100);
+    digitalWrite(RST_PIN, LOW);
+    delay(100);
+    digitalWrite(RST_PIN, HIGH);
+    delay(200);
+
+    const uint8_t *addr = (const uint8_t *)lcdBoot;
+    uint8_t cmd, countFlag, numArgs;
+    while ((cmd = pgm_read_byte(addr++)) > 0) { // '0' command ends list
+        countFlag = pgm_read_byte(addr++);
+        numArgs = countFlag & 0x7F;
+        if (cmd != 0xFF) { // '255' is ignored
+            spiWriteProgMemCommand(cmd, addr, numArgs);
+        }
+        addr += numArgs;
+    }
+}
 
 void setup(void) {
-    // SPI.setClockDivider(SPI_CLOCK_DIV2); // Does nothing, it's already at max freq.
     pinMode(LED_BUILTIN, OUTPUT); // Flash the built-in LED if we failed init.
     digitalWrite(LED_BUILTIN, HIGH);
-    pinMode(10, OUTPUT);
-    pinMode(8, OUTPUT);
-    tft.begin();
+    pinMode(SPI_ALT_PIN, OUTPUT);
+    pinMode(DSO_TEST_PIN, OUTPUT);
 
     dcPinMaskSet = digitalPinToBitMask(DC_PIN);
     dcPort = portOutputRegister(digitalPinToPort(DC_PIN));
+
+    displaySetup();
 
     if (mpu.begin()) {
         hasMpu = 1;
@@ -136,7 +253,7 @@ const uint16_t X_Cyan = 0xFF07;
 const uint16_t X_Red = 0x00F8;
 const uint16_t X_Green = 0xE007;
 
-uint16_t colourBuffer[128] = {};
+uint16_t colourBuffer[SCREEN_SIZE] = {};
 
 //  xx   x    xx  xxx  x x  xxxx  xxx xxxx  xx   xx
 // x  x xx   x  x    x x x  x    x       x x  x x  x
@@ -188,65 +305,55 @@ void blitCharacterVSlice(char packedCharacter, char xSlice, char bufferOffset) {
 // Overlay --v-- shape
 char target[] = { 64, 64, 64, 64, 64, 64, 65, 66, 67, 66, 65, 64, 64, 64, 64, 64, 64 };
 
-// stuff a byte into the SPI data register, and then poll until it gets shifted out
-#define AVR_WRITESPI(x) for (SPDR = (x); (!(SPSR & _BV(SPIF)));)
-
 // A loop-unrollled bulk paint, since the loop is actually significant
 void _writePixels(uint16_t *colors, uint16_t y1, uint16_t y2) {
     uint8_t *buf = (uint8_t *) colors + (y1 << 1);
-    uint8_t *end = (uint8_t *) colors + (y2 << 1);
+    uint8_t *end = (uint8_t *) colors + ((y2 + 1) << 1);
     while (buf < end) {
         AVR_WRITESPI(*buf++);
         AVR_WRITESPI(*buf++);
     }
 }
 
-#define SPI_DC_LOW() *dcPort &= ~(dcPinMaskSet)
-#define SPI_DC_HIGH() *dcPort |= dcPinMaskSet
-
-void _writeCommand(uint8_t cmd) {
-    SPI_DC_LOW();
-    AVR_WRITESPI(cmd);
-    SPI_DC_HIGH();
-}
-
-// The tft version asks for w and h, so must compute this every frame, but
-// we're always sending some things the same, so we just want x1=x2, y1=0,y2=128
 void _setAddrWindow(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
-    _writeCommand(SSD1351_CMD_SETCOLUMN); // X range
+    spiWriteCommand(SSD1351_CMD_SETCOLUMN); // X range
     AVR_WRITESPI(x1);
     AVR_WRITESPI(x2);
-    _writeCommand(SSD1351_CMD_SETROW); // Y range
+    spiWriteCommand(SSD1351_CMD_SETROW); // Y range
     AVR_WRITESPI(y1);
     AVR_WRITESPI(y2);
-    _writeCommand(SSD1351_CMD_WRITERAM); // Begin write
+    spiWriteCommand(SSD1351_CMD_WRITERAM); // Begin write
 }
 
 // This is relatively fast.
-void drawHorizonVWritePixels(int16_t x, int16_t yintercept, int16_t old_yintercept) {
+void drawHorizonVWritePixels(int16_t x, int16_t yintercept, int16_t old_yintercept, bool clear) {
     bool hasCharsX = x < 6 * 5;
     char charCol = x / 5;
     char xBit = x % 5;
     int y = 0; // start at the top if rewriting the characters
     int16_t y1 = 0;
-    int16_t y2 = min(127, max(0, yintercept < old_yintercept ? old_yintercept : yintercept));
-    if (!hasCharsX || xBit ==4) {
-        y1 = min(127, max(0, yintercept < old_yintercept ? yintercept : old_yintercept));
+    int16_t y2 = LAST_SCREEN_INDEX;
+    if (!clear) {
+        y1 = min(LAST_SCREEN_INDEX, max(0, yintercept < old_yintercept ? yintercept : old_yintercept));
+        y2 = min(LAST_SCREEN_INDEX, max(0, yintercept < old_yintercept ? old_yintercept : yintercept));
+        if (hasCharsX && xBit != 4) {
+            y1 = 0;
+        }
     }
     _setAddrWindow(x, y1, x, y2);
     if (yintercept < 0) {
-        while (y < 128) {
+        while (y < SCREEN_SIZE) {
             colourBuffer[y++] = X_Brown;
         }
-    } else if (yintercept > 127) {
-        while (y < 128) {
+    } else if (yintercept > LAST_SCREEN_INDEX) {
+        while (y < SCREEN_SIZE) {
             colourBuffer[y++] = X_Blue;
         }
     } else {
         while (y < yintercept) {
             colourBuffer[y++] = X_Blue;
         }
-        while (y < 128) {
+        while (y < SCREEN_SIZE) {
             colourBuffer[y++] = X_Brown;
         }
     }
@@ -266,16 +373,6 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept, int16_t old_yinterce
     _writePixels(colourBuffer, y1, y2);
 }
 
-int16_t test = 0;
-uint16_t lastFrame = millis();
-
-typedef struct {
-    float x, y, z;
-} Vector;
-
-#define vecLengthSq(v) ((v).x*(v).x + (v).y*(v).y + (v).z*(v).z)
-#define vecLength(v) (sqrtf(vecLengthSq(v)))
-
 void vecNormalise(Vector &v) {
     float length = vecLength(v);
     v.x /= length;
@@ -291,22 +388,13 @@ Vector vecCrossProduct(Vector &v1, Vector &v2) {
     return result;
 }
 
-#define dotProduct(v1, v2) ((v1).x*(v2).x + (v1).y*(v2).y + (v1).z*(v2).z)
-
-Vector vecForward = { .x = -1, .y = 0, .z = 0 };
-
-float old_m = 0;
-float old_c = 129;
-
 // See https://create.arduino.cc/projecthub/MinukaThesathYapa/arduino-mpu6050-accelerometer-f92d8b
 // For alternate MPU6050 code.
-long duration = 0;
 void drawHorizon() {
-    digitalWrite(8, LOW);
+    digitalWrite(DSO_TEST_PIN, LOW);
     long start = millis();
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
-    long mpuTime = millis();
 
     // printToBuffer(3, 1, g.gyro.pitch);
     printToBuffer(0, 0, a.acceleration.x);
@@ -320,7 +408,7 @@ void drawHorizon() {
     lastFrame = now;
 
     // Transaction
-    tft.startWrite();
+    spiStartWrite();
 
     // Build a vector to "down", and normalise it, ie 0,0,1
     // given our forward vector is -1,0,0 (depends on sensor orientation),
@@ -338,25 +426,22 @@ void drawHorizon() {
     // special handling to cope with 90 degrees, since m will be INF
     float c = -70 * cosPitch + 64 - m * 64; // the m*64 is so we don't have to m*(x-64) each loop
 
-    long computeTime = millis();
+    // We write the first column separately for two reasons.
+    // First, we can completely avoid a pair of unnecessary multiplies and additions.
+    // Second, if we trigger the DSO after the first column it makes some measurements a bit easier.
+    drawHorizonVWritePixels(0, c, old_c, first);
 
-    printToBuffer(3, 1, (computeTime - start) / 100.0f);
-    printToBuffer(4, 1, (duration) / 100.0f);
-
-    drawHorizonVWritePixels(0, c, old_c);
-
-    digitalWrite(8, HIGH);
+    digitalWrite(DSO_TEST_PIN, HIGH);
     // Draw the horizon - brown below the line, blue above.
-    for (int16_t x = 1; x < 128; x++) {
-        drawHorizonVWritePixels(x, m * x + c, old_m * x + old_c);
+    for (int16_t x = 1; x < SCREEN_SIZE; x++) {
+        drawHorizonVWritePixels(x, m * x + c, old_m * x + old_c, first);
     }
 
     old_m = m;
     old_c = c;
+    first = false;
 
-    duration = millis() - computeTime;
-
-    tft.endWrite();
+    spiEndWrite();
 }
 
 void loop() {
