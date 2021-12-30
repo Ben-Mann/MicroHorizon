@@ -289,28 +289,12 @@ char target[] = { 64, 64, 64, 64, 64, 64, 65, 66, 67, 66, 65, 64, 64, 64, 64, 64
 
 
 // A loop-unrollled bulk paint, since the loop is actually significant
-void _write128Pixels(uint16_t *colors) {
-    uint8_t *buf = (uint8_t *) colors;
-    uint8_t *end = buf + 256;
+void _writePixels(uint16_t *colors, uint16_t y1, uint16_t y2) {
+    uint8_t *buf = (uint8_t *) colors + (y1 << 1);
+    uint8_t *end = (uint8_t *) colors + (y2 << 1);
     while (buf < end) {
-        // 8 pixel block {{
         AVR_WRITESPI(*buf++);
         AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        AVR_WRITESPI(*buf++);
-        // }}
     }
 }
 
@@ -335,13 +319,19 @@ void _setAddrWindow(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
     _writeCommand(SSD1351_CMD_WRITERAM); // Begin write
 }
 
+
 // This is relatively fast.
-void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
+void drawHorizonVWritePixels(int16_t x, int16_t yintercept, int16_t old_yintercept) {
     bool hasCharsX = x < 6 * 5;
     char charCol = x / 5;
     char xBit = x % 5;
-    _setAddrWindow(x, 0, x, 127);
-    int y = 0;
+    int y = 0; // start at the top if rewriting the characters
+    int16_t y1 = 0;
+    int16_t y2 = min(127, max(0, yintercept < old_yintercept ? old_yintercept : yintercept));
+    if (!hasCharsX || xBit ==4) {
+        y1 = min(127, max(0, yintercept < old_yintercept ? yintercept : old_yintercept));
+    }
+    _setAddrWindow(x, y1, x, y2);
     if (yintercept < 0) {
         while (y < 128) {
             colourBuffer[y++] = X_Brown;
@@ -371,7 +361,7 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
         colourBuffer[target[x - 56]] = X_Yellow;
     }
 
-    _write128Pixels(colourBuffer);
+    _writePixels(colourBuffer, y1, y2);
 }
 
 int16_t test = 0;
@@ -406,6 +396,9 @@ Vector vecCrossProduct(Vector &v1, Vector &v2) {
 #define dotProduct(v1, v2) ((v1).x*(v2).x + (v1).y*(v2).y + (v1).z*(v2).z)
 
 Vector vecForward = { .x = -1, .y = 0, .z = 0 };
+
+float old_m = 0;
+float old_c = 129;
 
 //float dotProduct(Vector v1, Vector v2) {
 //    return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
@@ -461,13 +454,16 @@ void drawHorizon() {
     printToBuffer(3, 1, (computeTime - start) / 100.0f);
     printToBuffer(4, 1, (duration) / 100.0f);
 
-    drawHorizonVWritePixels(0, c);
+    drawHorizonVWritePixels(0, c, old_c);
 
     digitalWrite(8, HIGH);
     // Draw the horizon - brown below the line, blue above.
     for (int16_t x = 1; x < 128; x++) {
-        drawHorizonVWritePixels(x, m * x + c);
+        drawHorizonVWritePixels(x, m * x + c, old_m * x + old_c);
     }
+
+    old_m = m;
+    old_c = c;
 
     duration = millis() - computeTime;
 
