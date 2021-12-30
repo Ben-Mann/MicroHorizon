@@ -65,6 +65,12 @@ Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PI
 Adafruit_MPU6050 mpu;
 char hasMpu = 0;
 
+// DC_PIN
+uint8_t dcPinMaskSet; // = digitalPinToBitMask(DC_PIN);
+volatile uint8_t *dcPort;
+//dcPort = (PORTreg_t)portOutputRegister(digitalPinToPort(dc));
+#define digitalPinToPort(P) ( pgm_read_byte( digital_pin_to_port_PGM + (P) ) )
+
 float p = 3.1415926;
 
 void testdrawtext(char *text, uint16_t color) {
@@ -104,6 +110,9 @@ void setup(void) {
 
     tft.setTextColor(GREEN);
     printLn("Artificial Horizon v0.9");
+
+    dcPinMaskSet = digitalPinToBitMask(DC_PIN);
+    dcPort = portOutputRegister(digitalPinToPort(DC_PIN));
 
     if (mpu.begin()) {
         hasMpu = 1;
@@ -271,12 +280,33 @@ void _writePixels(uint16_t *colors, uint32_t len) {
     }
 }
 
+#define SPI_DC_LOW() *dcPort &= ~(dcPinMaskSet)
+#define SPI_DC_HIGH() *dcPort |= dcPinMaskSet
+
+void _writeCommand(uint8_t cmd) {
+    SPI_DC_LOW();
+    AVR_WRITESPI(cmd);
+    SPI_DC_HIGH();
+}
+
+// The tft version asks for w and h, so must compute this every frame, but
+// we're always sending some things the same, so we just want x1=x2, y1=0,y2=128
+void _setAddrWindow(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
+    _writeCommand(SSD1351_CMD_SETCOLUMN); // X range
+    AVR_WRITESPI(x1);
+    AVR_WRITESPI(x2);
+    _writeCommand(SSD1351_CMD_SETROW); // Y range
+    AVR_WRITESPI(y1);
+    AVR_WRITESPI(y2);
+    _writeCommand(SSD1351_CMD_WRITERAM); // Begin write
+}
+
 // This is relatively fast.
 void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
     bool hasCharsX = x < 6 * 5;
     char charCol = x / 5;
     char xBit = x % 5;
-    tft.setAddrWindow(x, 0, 1, 128);
+    _setAddrWindow(x, 0, x, 127);
     int y = 0;
     if (yintercept < 0) {
         while (y < 128) {
@@ -307,7 +337,6 @@ void drawHorizonVWritePixels(int16_t x, int16_t yintercept) {
         colourBuffer[target[x - 56]] = YELLOW;
     }
 
-    //tft.writePixels(colourBuffer, 16, true, false);
     _writePixels(colourBuffer, 128);
 }
 
