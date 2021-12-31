@@ -1,34 +1,23 @@
-/***************************************************
-  This is a example sketch demonstrating graphic drawing
-  capabilities of the SSD1351 library for the 1.5"
-  and 1.27" 16-bit Color OLEDs with SSD1351 driver chip
+/**
+ * Draw an 'aritificial horizon' display on an SSD1351 128x128 LCD with data from an MPU6050 IMU.
+ *
+ * The top left of the display shows debug data, nominally:
+ *  * X acceleration
+ *  * Y acceleration
+ *  * Z acceleration
+ *  * Refresh rate in Frames Per Second
+ *  * IMU temperature
+ *
+ * TODO - Compensate for gyro rotation.
+ *   The IMU gyro is not used, and since the current implementation relies on the orientation of
+ *   force vectors with die alignment, linear forces will register as rotation.
+ */
 
-  Pick one up today in the adafruit shop!
-  ------> http://www.adafruit.com/products/1431
-  ------> http://www.adafruit.com/products/1673
-
-  If you're using a 1.27" OLED, change SCREEN_HEIGHT to 96 instead of 128.
-
-  These displays use SPI to communicate, 4 or 5 pins are required to
-  interface
-  Adafruit invests time and resources providing this open source code,
-  please support Adafruit and open-source hardware by purchasing
-  products from Adafruit!
-
-  Written by Limor Fried/Ladyada for Adafruit Industries.
-  BSD license, all text above must be included in any redistribution
-
-  The Adafruit GFX Graphics core library is also required
-  https://github.com/adafruit/Adafruit-GFX-Library
-  Be sure to install it!
- ****************************************************/
+#include <SPI.h>
+#include <Wire.h>
 
 #define SCREEN_SIZE  128
 #define LAST_SCREEN_INDEX (SCREEN_SIZE - 1)
-
-// You can use any (4 or) 5 pins
-#define SCLK_PIN 2
-#define MOSI_PIN 3
 #define DC_PIN   4
 #define CS_PIN   5
 #define RST_PIN  6
@@ -39,25 +28,15 @@
 // Use to trigger the DSO for timing analysis
 #define DSO_TEST_PIN 8
 
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
-#include <SPI.h>
-
-Adafruit_MPU6050 mpu;
-char hasMpu = 0;
-
-// DC_PIN
 uint8_t dcPinMaskSet;
 volatile uint8_t *dcPort;
 uint8_t csPinMaskSet;
 volatile uint8_t *csPort;
 #define digitalPinToPort(P) ( pgm_read_byte( digital_pin_to_port_PGM + (P) ) )
 
-const float p = 3.1415926;
 const long spiClockSpeedHz = 8000000L;
 
 SPISettings spiSettings = SPISettings(spiClockSpeedHz, MSBFIRST, SPI_MODE0);
-SPIClass *spi;
 
 #define SSD1351_CMD_SETCOLUMN 0x15      ///< See datasheet
 #define SSD1351_CMD_SETROW 0x75         ///< See datasheet
@@ -66,7 +45,6 @@ SPIClass *spi;
 #define SSD1351_CMD_STARTLINE 0xA1      ///< See datasheet
 #define SSD1351_CMD_DISPLAYOFFSET 0xA2  ///< See datasheet
 #define SSD1351_CMD_NORMALDISPLAY 0xA6  ///< See datasheet
-#define SSD1351_CMD_INVERTDISPLAY 0xA7  ///< See datasheet
 #define SSD1351_CMD_FUNCTIONSELECT 0xAB ///< See datasheet
 #define SSD1351_CMD_DISPLAYOFF 0xAE     ///< See datasheet
 #define SSD1351_CMD_DISPLAYON 0xAF      ///< See datasheet
@@ -136,6 +114,44 @@ float old_c = 129;
 boolean first = true;
 uint16_t lastFrame = millis();
 
+#define I2CMPU 0x68
+#define MPU_ACCEL 0x3B
+#define MPU_TEMP 0x41
+#define MPU_PWR_MGMT_1 0x6B
+#define ACCEL_CONFIG 0x1C
+#define AFS_SEL_16G 0x18
+#define LSB_PER_G_16G 2048.0f
+Vector mpuAccel = Vector();
+float mpuTemp;
+
+void mpuSetup() {
+    Wire.begin();
+    Wire.beginTransmission(I2CMPU);
+    Wire.write(MPU_PWR_MGMT_1);
+    Wire.write(0x00); // Clear sleep bit; the MPU6050 starts in sleep mode.
+    Wire.endTransmission(true);
+    Wire.beginTransmission(I2CMPU);
+    Wire.write(ACCEL_CONFIG);
+    Wire.write(AFS_SEL_16G);
+    Wire.endTransmission(false);
+}
+
+void mpuGet() {
+    Wire.beginTransmission(I2CMPU);
+    Wire.write(MPU_ACCEL);
+    Wire.endTransmission(false);
+    Wire.requestFrom(I2CMPU, 6, true);
+    mpuAccel.x = (Wire.read() << 8 | Wire.read()) / LSB_PER_G_16G;
+    mpuAccel.y = (Wire.read() << 8 | Wire.read()) / LSB_PER_G_16G;
+    mpuAccel.z = (Wire.read() << 8 | Wire.read()) / LSB_PER_G_16G;
+    Wire.beginTransmission(I2CMPU);
+    Wire.write(MPU_TEMP);
+    Wire.endTransmission(false);
+    Wire.requestFrom(I2CMPU, 2, true);
+    // Formula from datasheet
+    mpuTemp = (Wire.read() << 8 | Wire.read()) / 340.0f + 36.53f;
+}
+
 // See Adafruit_SSD1351 for a reference example
 static const uint8_t PROGMEM lcdBoot[] = {
         SSD1351_CMD_COMMANDLOCK,    1, 0x12,
@@ -200,13 +216,7 @@ void setup(void) {
 
     displaySetup();
 
-    if (mpu.begin()) {
-        hasMpu = 1;
-        mpu.setAccelerometerRange(MPU6050_RANGE_16_G);
-        mpu.setGyroRange(MPU6050_RANGE_250_DEG);
-        mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-    } else {
-    }
+    mpuSetup();
     digitalWrite(LED_BUILTIN, LOW);
 }
 
@@ -388,19 +398,14 @@ Vector vecCrossProduct(Vector &v1, Vector &v2) {
     return result;
 }
 
-// See https://create.arduino.cc/projecthub/MinukaThesathYapa/arduino-mpu6050-accelerometer-f92d8b
-// For alternate MPU6050 code.
 void drawHorizon() {
     digitalWrite(DSO_TEST_PIN, LOW);
-    long start = millis();
-    sensors_event_t a, g, temp;
-    mpu.getEvent(&a, &g, &temp);
+    mpuGet();
 
-    // printToBuffer(3, 1, g.gyro.pitch);
-    printToBuffer(0, 0, a.acceleration.x);
-    printToBuffer(1, 0, a.acceleration.y);
-    printToBuffer(2, 0, a.acceleration.z);
-    printToBuffer(6, 2, temp.temperature);
+    printToBuffer(0, 0, mpuAccel.x); // a.acceleration.x);
+    printToBuffer(1, 0, mpuAccel.y); //a.acceleration.y);
+    printToBuffer(2, 0, mpuAccel.z); //a.acceleration.z);
+    printToBuffer(6, 2, mpuTemp); //temp.temperature);
 
     uint16_t now = millis();
     float fps = 1000.0f / (now - lastFrame); // (now - lastFrame) / 100.0f; //
@@ -415,7 +420,7 @@ void drawHorizon() {
     // cross product of forward and down should correlate with horizon slope?
     // and angle between forward and down gives horizon offset?
     // dot product of forward and down gives us the cos of the angle between them
-    Vector accel = { .x = a.acceleration.x, .y = a.acceleration.y, .z = a.acceleration.z };
+    Vector accel = { .x = mpuAccel.x, .y = mpuAccel.y, .z = mpuAccel.z };
     vecNormalise(accel);
     float cosPitch = dotProduct(accel, vecForward);
     Vector vecSide = vecCrossProduct(accel, vecForward);
@@ -445,12 +450,5 @@ void drawHorizon() {
 }
 
 void loop() {
-    if (hasMpu == 1) {
-        drawHorizon();
-    } else {
-        digitalWrite(LED_BUILTIN, HIGH);
-        delay(500);
-        digitalWrite(LED_BUILTIN, LOW);
-        delay(500);
-    }
+    drawHorizon();
 }
